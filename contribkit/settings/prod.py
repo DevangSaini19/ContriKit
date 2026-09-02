@@ -105,3 +105,7 @@ LOGGING = {
 # Axes: use trusted IP if behind reverse proxy
 AXES_BEHIND_REVERSE_PROXY = config('AXES_BEHIND_REVERSE_PROXY', default=True, cast=bool)
 AXES_REVERSE_PROXY_HEADER = 'HTTP_X_FORWARDED_FOR'
+
+# Social auth (Google OAuth): force https in the callback/redirect URI when
+# running behind the PythonAnywhere reverse proxy.
+SOCIAL_AUTH_REDIRECT_IS_HTTPS = True

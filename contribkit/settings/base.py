@@ -16,6 +16,7 @@ INSTALLED_APPS = [
 
     # Third-party
     'axes',
+    'social_django',
 
     # Custom apps
     'accounts',
@@ -32,6 +33,8 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    # Social auth (Google OAuth) — handles OAuth errors/cancellation gracefully
+    'social_django.middleware.SocialAuthExceptionMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     # Axes rate limiting middleware
@@ -54,6 +57,8 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'core.context_processors.role_context',
                 # Axes context processor for template usage
+                'social_django.context_processors.backends',
+                'social_django.context_processors.login_redirect',
             ],
         },
     },
@@ -64,6 +69,7 @@ WSGI_APPLICATION = 'contribkit.wsgi.application'
 # Authentication backends — axes must be first
 AUTHENTICATION_BACKENDS = [
     'axes.backends.AxesStandaloneBackend',
+    'social_core.backends.google.GoogleOAuth2',
     'django.contrib.auth.backends.ModelBackend',
 ]
 
@@ -129,3 +135,46 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5 MB
 # Axes lockout template and URL
 AXES_LOCKOUT_TEMPLATE = 'registration/locked_out.html'
 AXES_LOCKOUT_URL = None  # Use template, not redirect
+
+# ---------------------------------------------------------------------------
+# Google OAuth 2.0 (python-social-auth / social-auth-app-django)
+# Credentials are read from environment variables only — never committed.
+# ---------------------------------------------------------------------------
+SOCIAL_AUTH_JSONFIELD_ENABLED = True  # Store extra_data in a JSONField (works on SQLite)
+
+SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = config('GOOGLE_OAUTH2_CLIENT_ID', default='')
+SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = config('GOOGLE_OAUTH2_CLIENT_SECRET', default='')
+
+SOCIAL_AUTH_GOOGLE_OAUTH2_SCOPE = [
+    'openid',
+    'https://www.googleapis.com/auth/userinfo.email',
+    'https://www.googleapis.com/auth/userinfo.profile',
+]
+
+# Where social auth should land / start / go on failure.
+SOCIAL_AUTH_LOGIN_URL = '/accounts/login/'
+SOCIAL_AUTH_LOGIN_REDIRECT_URL = '/dashboard/'
+SOCIAL_AUTH_LOGIN_ERROR_URL = '/accounts/login/'
+
+# Never re-raise social-auth exceptions (even when DEBUG=True). Instead, the
+# SocialAuthExceptionMiddleware shows a user-friendly message and redirects back
+# to the login page. This keeps cancellation / invalid callback / auth failures
+# graceful in both local development and production.
+SOCIAL_AUTH_RAISE_EXCEPTIONS = False
+
+# Custom pipeline: add associate_by_email (before create_user) so a Google
+# login whose verified email already belongs to an existing account is linked
+# to that account instead of creating a duplicate user. Google verifies email
+# addresses, so this association is safe.
+SOCIAL_AUTH_PIPELINE = (
+    'social_core.pipeline.social_auth.social_details',
+    'social_core.pipeline.social_auth.social_uid',
+    'social_core.pipeline.social_auth.auth_allowed',
+    'social_core.pipeline.social_auth.social_user',
+    'social_core.pipeline.user.get_username',
+    'social_core.pipeline.social_auth.associate_by_email',
+    'social_core.pipeline.user.create_user',
+    'social_core.pipeline.social_auth.associate_user',
+    'social_core.pipeline.social_auth.load_extra_data',
+    'social_core.pipeline.user.user_details',
+)

@@ -17,6 +17,10 @@ urlpatterns = [
     # Auth
     path('accounts/', include('accounts.urls')),
 
+    # Social auth (Google OAuth 2.0)
+    # Exposes /login/<backend>/ and /complete/<backend>/ (e.g. google-oauth2)
+    path('', include('social_django.urls', namespace='social')),
+
     # Apps
     path('issues/', include('issues.urls')),
     path('templates/', include('templates_app.urls')),

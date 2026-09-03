@@ -825,6 +825,36 @@ pre.code-block {
   margin: 0;
 }
 
+.auth-card__divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0;
+  color: var(--color-slate-400);
+  font-size: var(--text-small);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.auth-card__divider::before,
+.auth-card__divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--color-slate-200);
+}
+
+.btn-google {
+  text-decoration: none;
+  color: var(--color-slate-800);
+}
+
+.btn-google:hover {
+  color: var(--color-slate-900);
+  text-decoration: none;
+}
+
 /* Issue detail */
 .detail-layout {
   display: grid;

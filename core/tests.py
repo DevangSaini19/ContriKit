@@ -7,6 +7,7 @@ two outbound HTTPS calls to Google are mocked.
 """
 
 from unittest import mock
+from urllib.parse import parse_qs, urlparse
 
 from django.conf import settings
 from django.test import Client, TestCase
@@ -109,10 +110,14 @@ class GoogleOAuthFlowTests(TestCase):
             location.startswith('https://accounts.google.com/o/oauth2/auth?'),
             f'unexpected redirect target: {location}',
         )
-        self.assertIn(f'client_id={FAKE_CLIENT_ID}', location)
-        # social-auth emits redirect_uri without percent-encoding the slashes;
-        # assert on the value actually sent.
-        self.assertIn('redirect_uri=http://testserver/complete/google-oauth2/', location)
+        # Parse the query instead of substring-matching: the assertions then
+        # survive harmless reordering/encoding changes by social-auth while
+        # still pinning the exact target and parameters.
+        params = parse_qs(urlparse(location).query)
+        self.assertEqual(params['client_id'], [FAKE_CLIENT_ID])
+        self.assertEqual(
+            params['redirect_uri'], ['http://testserver/complete/google-oauth2/']
+        )
 
         # The redirect response carries the CSP too; it must still allow the
         # hop to Google, or the browser blocks the navigation.
@@ -130,9 +135,7 @@ class GoogleOAuthFlowTests(TestCase):
 
         # Pull the `state` Django stashed in the session and echo it back,
         # exactly as Google does on the callback.
-        state = dict(
-            pair.split('=', 1) for pair in location.split('?', 1)[1].split('&')
-        )['state']
+        state = parse_qs(urlparse(location).query)['state'][0]
 
         with mock.patch(
             'social_core.backends.google.GoogleOAuth2.request_access_token',
@@ -159,8 +162,11 @@ class GoogleOAuthFlowTests(TestCase):
         self.assertEqual(social.provider, 'google-oauth2')
         self.assertEqual(social.extra_data['access_token'], 'ya29.fake-access-token')
 
-        # The session really is authenticated.
-        self.client.force_login(user)
+        # The session really is authenticated by the callback itself. Deliber
+        # ately NO force_login here: forcing a login would overwrite the
+        # session and the assertions would pass even if social-auth had failed
+        # to authenticate.
+        self.assertEqual(self.client.session.get('_auth_user_id'), str(user.pk))
         self.assertEqual(self.client.get('/dashboard/').status_code, 200)
 
     def test_second_login_reuses_the_same_account(self):
@@ -169,9 +175,7 @@ class GoogleOAuthFlowTests(TestCase):
 
         for _ in range(2):
             location = self.test_login_button_redirects_to_google_consent_screen()
-            state = dict(
-                pair.split('=', 1) for pair in location.split('?', 1)[1].split('&')
-            )['state']
+            state = parse_qs(urlparse(location).query)['state'][0]
             with mock.patch(
                 'social_core.backends.google.GoogleOAuth2.request_access_token',
                 return_value=dict(FAKE_TOKEN_RESPONSE),

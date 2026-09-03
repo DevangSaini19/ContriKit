@@ -162,6 +162,19 @@ SOCIAL_AUTH_LOGIN_ERROR_URL = '/accounts/login/'
 # graceful in both local development and production.
 SOCIAL_AUTH_RAISE_EXCEPTIONS = False
 
+# Hosts a form submission may end up on, used to build the CSP `form-action`
+# directive in core/csp_middleware.py.
+#
+# "Sign in with Google" POSTs a same-origin form to /login/google-oauth2/, which
+# 302-redirects to Google's consent screen. Chrome/Chromium and Safari check
+# `form-action` across the whole redirect chain of a form submission (Firefox
+# does not), so without the Google host listed here the browser blocks the
+# redirect: the button looks dead and the server log only shows a clean
+# `"POST /login/google-oauth2/" 302 0`.
+CSP_FORM_ACTION_EXTRA = [
+    'https://accounts.google.com',
+]
+
 # Custom pipeline: add associate_by_email (before create_user) so a Google
 # login whose verified email already belongs to an existing account is linked
 # to that account instead of creating a duplicate user. Google verifies email

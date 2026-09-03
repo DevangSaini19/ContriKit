@@ -162,8 +162,8 @@ class GoogleOAuthFlowTests(TestCase):
         self.assertEqual(social.provider, 'google-oauth2')
         self.assertEqual(social.extra_data['access_token'], 'ya29.fake-access-token')
 
-        # The session really is authenticated by the callback itself. Deliber
-        # ately NO force_login here: forcing a login would overwrite the
+        # The session really is authenticated by the callback itself. Deliberately
+        # NO force_login here: forcing a login would overwrite the
         # session and the assertions would pass even if social-auth had failed
         # to authenticate.
         self.assertEqual(self.client.session.get('_auth_user_id'), str(user.pk))

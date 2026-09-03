@@ -62,9 +62,63 @@
 5. **Run Development Server & Automated Verification**
    ```bash
    python test_all_routes.py        # Runs 100% automated smoke tests across 20+ routes
+   python manage.py test            # Unit tests, incl. the full Google OAuth round trip
    python manage.py runserver
    ```
    Visit `http://127.0.0.1:8000/` in your browser.
 
 
    Added Deploy Link:- https://shouryano01.pythonanywhere.com/ 
+
+---
+
+## Sign in with Google (OAuth 2.0)
+
+Handled by [python-social-auth](https://python-social-auth.readthedocs.io/) (`social-auth-app-django`), which exposes `/login/google-oauth2/` (start) and `/complete/google-oauth2/` (callback).
+
+### 1. Create the credentials
+
+Google Cloud Console → **APIs & Services → Credentials → Create Credentials → OAuth client ID → Web application**.
+
+### 2. Register the authorized redirect URI
+
+This is the step that most often gets missed. The callback path is **`/complete/google-oauth2/`** on whatever host you browse the site from — including the trailing slash. `localhost` and `127.0.0.1` count as *different* origins, so register each one you actually use:
+
+| Where you run it | Authorized redirect URI |
+| --- | --- |
+| `runserver`, browsing `localhost` | `http://localhost:8000/complete/google-oauth2/` |
+| `runserver`, browsing `127.0.0.1` | `http://127.0.0.1:8000/complete/google-oauth2/` |
+| PythonAnywhere | `https://yourusername.pythonanywhere.com/complete/google-oauth2/` |
+
+A missing entry produces `Error 400: redirect_uri_mismatch` from Google.
+
+### 3. Put the credentials in `.env`
+
+```dotenv
+GOOGLE_OAUTH2_CLIENT_ID=1234-abcdefghijklmnop.apps.googleusercontent.com
+GOOGLE_OAUTH2_CLIENT_SECRET=GOCSPX-...
+```
+
+`base.py` reads these into `SOCIAL_AUTH_GOOGLE_OAUTH2_KEY` / `..._SECRET`. Never commit them.
+
+### 4. Migrate
+
+`python manage.py migrate` creates the `social_django` tables (`usersocialauth`, `nonce`, `association`, `partial`).
+
+### Troubleshooting
+
+**The button does nothing, and the server log shows `"POST /login/google-oauth2/ HTTP/1.1" 302 0`.**
+Django did its job — it returned a correct 302 to `https://accounts.google.com/o/oauth2/auth?...` — but the *browser* refused to follow it. `core/csp_middleware.py` sends a `Content-Security-Policy` header, and Chrome/Chromium/Safari enforce the `form-action` directive across the **entire redirect chain** of a form submission (Firefox does not). Since the Google button posts a same-origin form whose 302 target is Google, `form-action 'self'` alone blocks the hop and the page just sits there. The fix is to list the IdP host:
+
+```python
+# contribkit/settings/base.py
+CSP_FORM_ACTION_EXTRA = ['https://accounts.google.com']
+```
+
+Add another entry here whenever you wire up an extra OAuth provider. Open DevTools → Console to confirm; a blocked hop is reported as `Refused to send form data to ... because it violates the following Content Security Policy directive: "form-action 'self'"`.
+
+**`Error 400: redirect_uri_mismatch`** — see step 2.
+
+**The callback works but you get bounced back to the login page** — social-auth caught an exception. `SOCIAL_AUTH_RAISE_EXCEPTIONS = False` routes it through `SocialAuthExceptionMiddleware` as a flash message instead of a stack trace, so read the message on the login page rather than the traceback.
+
+**Everything 301-redirects to `https://localhost:8000` and the page won't load** — you are running the *prod* settings module, where `SECURE_SSL_REDIRECT=True`. `manage.py` selects dev settings by default, so this only happens if `DJANGO_SETTINGS_MODULE=contribkit.settings.prod` was exported in your shell. Unset it for local work.

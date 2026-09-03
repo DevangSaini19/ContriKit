@@ -75,10 +75,8 @@ class CSPFormActionTests(TestCase):
         )
 
     def test_missing_form_action_extra_setting_does_not_break(self):
-        original = settings.CSP_FORM_ACTION_EXTRA
-        del settings.CSP_FORM_ACTION_EXTRA
-        self.addCleanup(setattr, settings, 'CSP_FORM_ACTION_EXTRA', original)
-        response = self.client.get(reverse('login'))
+        with self.settings(CSP_FORM_ACTION_EXTRA=None):
+            response = self.client.get(reverse('login'))
         self.assertEqual(
             _parse_csp(response['Content-Security-Policy'])['form-action'],
             ["'self'"],

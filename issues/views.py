@@ -1,9 +1,10 @@
 from django.shortcuts import render, get_object_or_404
 from django.core.paginator import Paginator
+from django.db import IntegrityError
 from django.db.models import Q
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
-from .models import Issue, Tag, SavedIssue
+from .models import Issue, Tag, SavedIssue, SolvedIssue
 from templates_app.models import Template
 
 def issue_list_view(request):
@@ -12,7 +13,7 @@ def issue_list_view(request):
     difficulty = request.GET.get('diff', '').strip()
     tag_slug = request.GET.get('tag', '').strip()
 
-    issues = Issue.objects.filter(status='open').select_related('repo').prefetch_related('tags').order_by('-created_at')
+    issues = Issue.objects.filter(status='open', repo__is_active=True).select_related('repo').prefetch_related('tags').order_by('-created_at')
 
     if query:
         issues = issues.filter(Q(title__icontains=query) | Q(description__icontains=query) | Q(repo__name__icontains=query))
@@ -24,7 +25,7 @@ def issue_list_view(request):
         issues = issues.filter(tags__slug=tag_slug)
 
     # Distinct languages for filter dropdown
-    languages = Issue.objects.filter(status='open').exclude(repo__language='').values_list('repo__language', flat=True).distinct()
+    languages = Issue.objects.filter(status='open', repo__is_active=True).exclude(repo__language='').values_list('repo__language', flat=True).distinct()
     tags = Tag.objects.all()
 
     paginator = Paginator(issues, 12)
@@ -33,8 +34,10 @@ def issue_list_view(request):
 
     # Saved issue IDs for current user to show saved state
     saved_ids = set()
+    solved_ids = set()
     if request.user.is_authenticated:
         saved_ids = set(SavedIssue.objects.filter(user=request.user).values_list('issue_id', flat=True))
+        solved_ids = set(SolvedIssue.objects.filter(user=request.user).exclude(issue__isnull=True).values_list('issue_id', flat=True))
 
     context = {
         'page_obj': page_obj,
@@ -45,6 +48,7 @@ def issue_list_view(request):
         'selected_diff': difficulty,
         'selected_tag': tag_slug,
         'saved_ids': saved_ids,
+        'solved_ids': solved_ids,
     }
     return render(request, 'issues/issue_list.html', context)
 
@@ -59,8 +63,10 @@ def issue_detail_view(request, id):
         request.session[session_key] = True
 
     is_saved = False
+    is_solved = False
     if request.user.is_authenticated:
         is_saved = SavedIssue.objects.filter(user=request.user, issue=issue).exists()
+        is_solved = SolvedIssue.objects.filter(user=request.user, issue=issue).exists()
 
     # Get template files to display
     templates = Template.objects.all()
@@ -68,6 +74,7 @@ def issue_detail_view(request, id):
     return render(request, 'issues/issue_detail.html', {
         'issue': issue,
         'is_saved': is_saved,
+        'is_solved': is_solved,
         'templates': templates,
     })
 
@@ -85,3 +92,28 @@ def toggle_save_view(request, id):
     else:
         SavedIssue.objects.create(user=request.user, issue=issue)
         return JsonResponse({'status': 'saved', 'issue_id': issue.id})
+
+@require_POST
+def mark_solved_view(request, id):
+    """
+    Mark an open issue as solved by the authenticated user.
+    Security: verifies authentication, open status, duplicate prevention.
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'login_required'}, status=403)
+
+    issue = get_object_or_404(Issue, id=id)
+
+    # Closed issues cannot be solved — enforce backend even if frontend hides button
+    if issue.status != 'open':
+        return JsonResponse({'error': 'issue_closed', 'message': 'This issue is closed and cannot be marked as solved.'}, status=400)
+
+    # Check duplicate
+    if SolvedIssue.objects.filter(user=request.user, issue=issue).exists():
+        return JsonResponse({'error': 'already_solved', 'message': 'You have already marked this issue as solved.'}, status=400)
+
+    try:
+        obj = SolvedIssue.objects.create(user=request.user, issue=issue)
+        return JsonResponse({'status': 'solved', 'issue_id': issue.id, 'solved_at': obj.solved_at.isoformat()})
+    except IntegrityError:
+        return JsonResponse({'error': 'already_solved', 'message': 'You have already marked this issue as solved.'}, status=400)

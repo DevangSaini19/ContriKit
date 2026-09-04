@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initTooltips();
   initCopyButtons();
   initSaveToggle();
+  initSolvedToggle();
 });
 
 /* ── Navbar scroll + mobile toggle ── */
@@ -114,6 +115,86 @@ function initSaveToggle() {
           if (card && window.location.pathname.includes('/dashboard/saved')) {
             card.remove();
             checkEmptySavedList();
+          }
+        }
+      } catch {
+        btn.disabled = false;
+        showToast('An error occurred. Please try again.', 'danger');
+      }
+    });
+  });
+}
+
+/* ── Issue mark as solved (AJAX) ── */
+function initSolvedToggle() {
+  document.querySelectorAll('.btn-mark-solved').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const issueId = btn.getAttribute('data-issue-id');
+      const csrfToken = getCookie('csrftoken');
+
+      try {
+        btn.disabled = true;
+        const origHTML = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Saving...';
+
+        const response = await fetch(`/issues/${issueId}/mark-solved/`, {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': csrfToken,
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+        });
+        const data = await response.json();
+
+        if (response.status === 403 || data.error === 'login_required') {
+          window.location.href = `/accounts/login/?next=${window.location.pathname}`;
+          return;
+        }
+
+        if (response.ok && data.status === 'solved') {
+          showToast('Marked as solved! Your recommendations will improve.', 'success');
+          // Replace button with solved badge
+          const badge = document.createElement('span');
+          badge.className = 'btn btn-success btn-sm';
+          badge.style.pointerEvents = 'none';
+          badge.innerHTML = '<i class="bi bi-check2-square"></i> Solved';
+          badge.title = 'You solved this issue';
+
+          // If detail page has the large alert area, replace whole container
+          const detailContainer = btn.closest('.d-flex.align-items-center.gap-3');
+          if (detailContainer && detailContainer.querySelector('.btn-mark-solved')) {
+            // That is the detail-page green box
+            detailContainer.innerHTML = `
+              <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-check-circle-fill text-success fs-5"></i>
+                <div><strong>You marked this as solved</strong> — great work! Recommendations updated.</div>
+              </div>
+              <span class="badge bg-success flex-shrink-0"><i class="bi bi-check-lg"></i> Solved</span>
+            `;
+            detailContainer.style.background = 'var(--color-success-subtle)';
+            detailContainer.style.border = '1px solid rgba(16,185,129,0.2)';
+            detailContainer.style.borderRadius = 'var(--radius-lg)';
+          } else {
+            btn.replaceWith(badge);
+          }
+        } else {
+          btn.disabled = false;
+          btn.innerHTML = origHTML;
+          if (data.error === 'already_solved') {
+            showToast('You already marked this issue as solved.', 'info');
+            btn.innerHTML = '<i class="bi bi-check2-square"></i> Solved';
+            btn.classList.remove('btn-outline-success');
+            btn.classList.add('btn-success');
+            btn.disabled = true;
+            btn.style.pointerEvents = 'none';
+          } else if (data.error === 'issue_closed') {
+            showToast('This issue is closed and cannot be solved.', 'danger');
+            btn.disabled = true;
+            btn.title = 'Issue closed';
+          } else {
+            showToast(data.message || 'Could not mark as solved.', 'danger');
           }
         }
       } catch {

@@ -104,19 +104,25 @@
             <span class="issue-card__meta"><i class="bi bi-clock"></i> ~{{ issue.estimated_hours }}h</span>
             <div class="issue-card__actions">
               {% if user.is_authenticated %}
+                {% if issue.id in solved_ids %}
+                  <span class="btn btn-success btn-sm" style="pointer-events:none;"><i class="bi bi-check2-square"></i> Solved</span>
+                {% else %}
+                  <button type="button" class="btn btn-outline-success btn-sm btn-mark-solved" data-issue-id="{{ issue.id }}" title="Mark as solved">
+                    <i class="bi bi-check2-square"></i> Solved
+                  </button>
+                {% endif %}
                 {% if issue.id in saved_ids %}
                   <button type="button" class="btn btn-primary btn-sm btn-toggle-save" data-issue-id="{{ issue.id }}">
-                    <i class="bi bi-bookmark-fill"></i> Saved
+                    <i class="bi bi-bookmark-fill"></i>
                   </button>
                 {% else %}
                   <button type="button" class="btn btn-secondary btn-sm btn-toggle-save" data-issue-id="{{ issue.id }}">
-                    <i class="bi bi-bookmark"></i> Save
+                    <i class="bi bi-bookmark"></i>
                   </button>
                 {% endif %}
               {% else %}
-                <a href="/accounts/login/?next=/issues/" class="btn btn-secondary btn-sm">
-                  <i class="bi bi-bookmark"></i> Save
-                </a>
+                <a href="/accounts/login/?next=/issues/" class="btn btn-outline-success btn-sm" title="Sign in to mark solved"><i class="bi bi-check2-square"></i></a>
+                <a href="/accounts/login/?next=/issues/" class="btn btn-secondary btn-sm"><i class="bi bi-bookmark"></i></a>
               {% endif %}
               <a href="{{ issue.github_issue_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-dark btn-sm btn-icon" title="Open on GitHub">
                 <i class="bi bi-github"></i>

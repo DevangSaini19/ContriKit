@@ -102,6 +102,19 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 AUTH_USER_MODEL = 'accounts.User'
 
+# ---------------------------------------------------------------------------
+# ContriKit: Closed-issue retention & recommendation settings
+# ---------------------------------------------------------------------------
+# How long (in days) a CLOSED issue remains visible before the cleanup
+# command may permanently remove it. Configurable via env:
+#   CLOSED_ISSUE_RETENTION_DAYS=30  (default)
+# Existing solved-history rows are preserved even after the issue is deleted
+# (SolvedIssue.issue uses SET_NULL so history never breaks).
+CLOSED_ISSUE_RETENTION_DAYS = config('CLOSED_ISSUE_RETENTION_DAYS', default=30, cast=int)
+
+# How many personalized recommendations to show on the contributor dashboard.
+RECOMMENDED_ISSUES_LIMIT = config('RECOMMENDED_ISSUES_LIMIT', default=6, cast=int)
+
 LOGIN_REDIRECT_URL = '/dashboard/'
 LOGOUT_REDIRECT_URL = '/'
 LOGIN_URL = '/accounts/login/'

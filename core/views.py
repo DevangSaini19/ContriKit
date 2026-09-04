@@ -3,23 +3,28 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Count, Sum
 from django.http import JsonResponse
-from issues.models import Issue, SavedIssue, Tag
+from issues.models import Issue, SavedIssue, Tag, SolvedIssue
+from issues.recommender import get_recommendations
 from repos.models import Repo
 from templates_app.models import Template
 
 def landing_page(request):
-    issue_count = Issue.objects.filter(status='open').count()
+    issue_count = Issue.objects.filter(status='open', repo__is_active=True).count()
     template_count = Template.objects.count()
     repo_count = Repo.objects.filter(is_active=True).count()
-    featured_issues = Issue.objects.filter(status='open', is_featured=True).select_related('repo')[:8]
+    featured_issues = Issue.objects.filter(status='open', repo__is_active=True, is_featured=True).select_related('repo')[:8]
     if not featured_issues.exists():
-        featured_issues = Issue.objects.filter(status='open').select_related('repo')[:8]
+        featured_issues = Issue.objects.filter(status='open', repo__is_active=True).select_related('repo')[:8]
     featured_templates = Template.objects.all()[:3]
 
     saved_ids = set()
+    solved_ids = set()
     if request.user.is_authenticated:
         saved_ids = set(
             SavedIssue.objects.filter(user=request.user).values_list('issue_id', flat=True)
+        )
+        solved_ids = set(
+            SolvedIssue.objects.filter(user=request.user).exclude(issue__isnull=True).values_list('issue_id', flat=True)
         )
 
     context = {
@@ -29,6 +34,7 @@ def landing_page(request):
         'featured_issues': featured_issues,
         'featured_templates': featured_templates,
         'saved_ids': saved_ids,
+        'solved_ids': solved_ids,
     }
     return render(request, 'core/landing.html', context)
 
@@ -40,11 +46,26 @@ def dashboard_view(request):
     total_saved = saved_qs.count()
     saved_repos_count = saved_qs.values('issue__repo').distinct().count()
 
+    # Personalized recommendations — ML-based, with sensible fallback
+    try:
+        recommended_issues = get_recommendations(user)
+    except Exception:
+        # Never crash dashboard due to recommender
+        recommended_issues = []
+
+    # Solved history for badge/count
+    solved_count = SolvedIssue.objects.filter(user=user).exclude(issue__isnull=True).count()
+    solved_ids = set(SolvedIssue.objects.filter(user=user).exclude(issue__isnull=True).values_list('issue_id', flat=True))
+
     context = {
         'saved_issues': saved_issues,
         'total_saved': total_saved,
         'saved_repos_count': saved_repos_count,
-        'open_issues_count': Issue.objects.filter(status='open').count(),
+        'open_issues_count': Issue.objects.filter(status='open', repo__is_active=True).count(),
+        'recommended_issues': recommended_issues,
+        'solved_count': solved_count,
+        'solved_ids': solved_ids,
+        'has_solved_history': solved_count > 0,
     }
 
     if user.is_editor:

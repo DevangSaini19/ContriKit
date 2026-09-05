@@ -99,88 +99,28 @@
       {% endif %}
     </div>
 
-    <!-- Recommended for You — ML personalized -->
+    <!-- Recommended for You — on-demand ML -->
     <div class="dashboard-panel mb-4">
       <div class="dashboard-panel__header">
         <h2 class="dashboard-panel__title">
           <i class="bi bi-stars text-indigo me-2"></i>Recommended for You
-          {% if has_solved_history %}
-            <span class="badge bg-success bg-opacity-10 text-success border border-success ms-2" style="font-size:0.7rem;vertical-align:middle;">Personalized</span>
-          {% else %}
-            <span class="badge bg-secondary bg-opacity-10 text-secondary border ms-2" style="font-size:0.7rem;vertical-align:middle;">Popular picks</span>
-          {% endif %}
         </h2>
         <a href="/issues/" class="small text-indigo text-decoration-none fw-semibold">Browse All →</a>
       </div>
-
       {% if has_solved_history %}
         <p class="text-meta text-muted mb-3" style="font-size:0.85rem;">
           <i class="bi bi-lightbulb text-warning me-1"></i>
-          Based on <strong>{{ solved_count }}</strong> issue{{ solved_count|pluralize }} you've solved — similar languages, tags & topics ranked by TF-IDF similarity.
+          Based on <strong>{{ solved_count }}</strong> verified contribution{{ solved_count|pluralize }} — similar open issues ranked when you request them.
         </p>
       {% else %}
         <p class="text-meta text-muted mb-3" style="font-size:0.85rem;">
           <i class="bi bi-info-circle me-1"></i>
-          Solve a few issues to get personalized picks. Showing popular open opportunities for now.
+          Personalized picks need a verified merged pull request. Until then, we'll show popular open opportunities.
         </p>
       {% endif %}
-
-      {% if recommended_issues %}
-        <div class="row g-3">
-          {% for issue in recommended_issues %}
-            <div class="col-md-6 col-lg-4">
-              <article class="card h-100 p-3 d-flex flex-column shadow-sm card-hover" style="border-radius:var(--radius-lg);border:1px solid var(--color-slate-200);">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                  <span class="badge bg-secondary bg-opacity-10 text-dark border" style="font-size:0.7rem;">{{ issue.repo.name }}</span>
-                  {% if issue.difficulty == 'beginner' %}
-                    <span class="badge bg-success bg-opacity-10 text-success border" style="font-size:0.65rem;">Beginner</span>
-                  {% else %}
-                    <span class="badge bg-warning bg-opacity-10 text-dark border" style="font-size:0.65rem;">Intermediate</span>
-                  {% endif %}
-                </div>
-
-                {% if issue.repo.language %}
-                  <span class="badge mb-2" style="background:var(--color-primary-subtle);color:var(--color-primary);font-size:0.65rem;width:fit-content;">{{ issue.repo.language }}</span>
-                {% endif %}
-
-                <h6 class="fw-bold mb-2" style="font-size:0.95rem;line-height:1.35;">
-                  <a href="/issues/{{ issue.id }}/" class="text-dark text-decoration-none">{{ issue.title|truncatechars:80 }}</a>
-                </h6>
-
-                {% if issue.tags.all %}
-                  <div class="d-flex flex-wrap gap-1 mb-2">
-                    {% for tag in issue.tags.all|slice:":3" %}
-                      <span class="issue-card__tag" style="background-color:{{ tag.color }};font-size:0.65rem;padding:2px 7px;">{{ tag.name }}</span>
-                    {% endfor %}
-                  </div>
-                {% endif %}
-
-                <p class="text-muted small mb-3 flex-grow-1" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:0.8125rem;">
-                  {{ issue.description|truncatechars:110 }}
-                </p>
-
-                <div class="d-flex justify-content-between align-items-center pt-2 border-top mt-auto small">
-                  <span class="text-muted"><i class="bi bi-clock me-1"></i>~{{ issue.estimated_hours }}h</span>
-                  <div class="d-flex gap-2 align-items-center">
-                    {% if issue.id in solved_ids %}
-                      <span class="badge bg-success" style="font-size:0.65rem;"><i class="bi bi-check2-square"></i> Solved</span>
-                    {% endif %}
-                    <a href="/issues/{{ issue.id }}/" class="btn btn-sm btn-primary">View</a>
-                    <a href="{{ issue.github_issue_url }}" target="_blank" class="btn btn-sm btn-outline-dark" title="Open on GitHub"><i class="bi bi-github"></i></a>
-                  </div>
-                </div>
-              </article>
-            </div>
-          {% endfor %}
-        </div>
-      {% else %}
-        <div class="dashboard-empty">
-          <div class="dashboard-empty__icon"><i class="bi bi-stars"></i></div>
-          <h4 class="text-card-title mb-2">No recommendations yet</h4>
-          <p class="text-meta text-muted mb-3">Check back after more open issues are posted or you solve a few!</p>
-          <a href="/issues/" class="btn btn-primary btn-sm"><i class="bi bi-search"></i> Browse Issues</a>
-        </div>
-      {% endif %}
+      <a href="/issues/recommended/" class="btn btn-primary fw-semibold">
+        <i class="bi bi-stars"></i> Find Similar Issues
+      </a>
     </div>
 
     <div class="row g-4">

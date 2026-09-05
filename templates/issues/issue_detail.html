@@ -43,37 +43,38 @@
         <h2 class="text-card-title mb-3"><i class="bi bi-card-text text-indigo"></i> Context & Description</h2>
         <div class="text-body" style="white-space:pre-wrap;margin-bottom:32px;">{{ issue.description }}</div>
 
-        {# Solved status / action — only for open issues #}
-        {% if issue.status == 'closed' %}
+        {# Verified contribution status — solved only after a merged GitHub PR #}
+        {% if is_solved %}
+          <div class="alert alert-success d-flex align-items-center gap-2 mb-4" role="alert" style="border-radius:var(--radius-md);">
+            <i class="bi bi-check-circle-fill"></i>
+            <div><strong>Verified GitHub contribution</strong> — a merged pull request from your account is linked to this issue.</div>
+            <span class="badge bg-success ms-auto"><i class="bi bi-check-lg"></i> Solved</span>
+          </div>
+        {% elif issue.status == 'closed' %}
           <div class="alert alert-secondary d-flex align-items-center gap-2 mb-4" role="alert" style="border-radius:var(--radius-md);">
             <i class="bi bi-lock-fill"></i>
-            <div><strong>This issue is closed</strong> — solving is disabled. Historical solved records are preserved.</div>
+            <div><strong>This issue is closed</strong> — it is no longer listed as an open opportunity. Verified history is preserved.</div>
           </div>
         {% elif user.is_authenticated %}
-          {% if is_solved %}
-            <div class="alert alert-success d-flex align-items-center gap-2 mb-4" role="alert" style="border-radius:var(--radius-md);">
-              <i class="bi bi-check-circle-fill"></i>
-              <div><strong>You marked this as solved</strong> — great work! This helps us recommend similar issues.</div>
-              <span class="badge bg-success ms-auto"><i class="bi bi-check-lg"></i> Solved</span>
+          <div class="d-flex align-items-center gap-3 mb-4 p-3" style="background:var(--color-success-subtle);border:1px solid rgba(16,185,129,0.2);border-radius:var(--radius-lg);">
+            <div class="flex-grow-1">
+              <div class="fw-semibold" style="color:var(--color-slate-900);"><i class="bi bi-github text-success me-1"></i> Contribute on GitHub</div>
+              <div class="text-meta text-muted">Open a pull request that references this issue. After it is merged, ContribKit records it as solved for your account.</div>
             </div>
-          {% else %}
-            <div class="d-flex align-items-center gap-3 mb-4 p-3" style="background:var(--color-success-subtle);border:1px solid rgba(16,185,129,0.2);border-radius:var(--radius-lg);">
-              <div class="flex-grow-1">
-                <div class="fw-semibold" style="color:var(--color-slate-900);"><i class="bi bi-trophy text-success me-1"></i> Did you solve this issue?</div>
-                <div class="text-meta text-muted">Click Solved to record it — we'll learn from it and recommend similar opportunities.</div>
-              </div>
-              <button type="button" class="btn btn-success fw-semibold btn-mark-solved flex-shrink-0" data-issue-id="{{ issue.id }}">
-                <i class="bi bi-check2-square"></i> Mark as Solved
-              </button>
-            </div>
-          {% endif %}
+            <a href="{{ issue.github_issue_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-dark fw-semibold flex-shrink-0">
+              Contribute on GitHub <i class="bi bi-box-arrow-up-right"></i>
+            </a>
+            <button type="button" class="btn btn-outline-success fw-semibold flex-shrink-0 btn-verify-contribution" data-issue-id="{{ issue.id }}">
+              Check contribution
+            </button>
+          </div>
         {% else %}
           <div class="d-flex align-items-center gap-3 mb-4 p-3" style="background:var(--color-slate-50);border:1px solid var(--color-slate-200);border-radius:var(--radius-lg);">
             <div class="flex-grow-1">
-              <div class="fw-semibold"><i class="bi bi-trophy me-1"></i> Solved this issue?</div>
-              <div class="text-meta text-muted">Sign in to mark it solved and get personalized recommendations.</div>
+              <div class="fw-semibold"><i class="bi bi-github me-1"></i> Contribute on GitHub</div>
+              <div class="text-meta text-muted">Sign in so we can match your GitHub username to a merged pull request for this issue.</div>
             </div>
-            <a href="/accounts/login/?next={{ request.path }}" class="btn btn-success fw-semibold flex-shrink-0"><i class="bi bi-check2-square"></i> Mark as Solved</a>
+            <a href="/accounts/login/?next={{ request.path }}" class="btn btn-dark fw-semibold flex-shrink-0">Contribute on GitHub</a>
           </div>
         {% endif %}
 

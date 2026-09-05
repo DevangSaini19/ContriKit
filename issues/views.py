@@ -1,11 +1,52 @@
 from django.shortcuts import render, get_object_or_404
+from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db import IntegrityError
 from django.db.models import Q
 from django.http import JsonResponse
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 from .models import Issue, Tag, SavedIssue, SolvedIssue
+from .github_verify import record_verified_solved, verify_merged_pr_for_issue
+from .recommender import get_recommendations
 from templates_app.models import Template
+
+_VERIFY_MESSAGES = {
+    'github_username_required': 'Add your GitHub username to your account so we can match your merged pull requests.',
+    'invalid_issue_url': 'This issue is not linked to a GitHub issue URL we can verify.',
+    'github_unavailable': 'GitHub could not be reached. Try again in a moment.',
+    'pr_not_merged': 'A pull request was found but it is not merged yet.',
+    'no_matching_pr': 'No merged pull request by your GitHub account was found for this issue.',
+    'verification_required': 'Solved history is created only after a merged GitHub pull request is verified.',
+}
+
+
+def _verified_solved_ids(user):
+    return set(
+        SolvedIssue.objects.filter(user=user, is_verified=True)
+        .exclude(issue__isnull=True)
+        .values_list('issue_id', flat=True)
+    )
+
+
+def _maybe_auto_verify(request, issue):
+    """Check GitHub on issue view so solved state can appear without a claim button."""
+    user = request.user
+    if not user.is_authenticated:
+        return
+    if SolvedIssue.objects.filter(user=user, issue=issue, is_verified=True).exists():
+        return
+    if not (user.github_username or '').strip():
+        return
+    session_key = f'gh_verify_{issue.id}'
+    last = request.session.get(session_key)
+    now = timezone.now().timestamp()
+    if last and (now - float(last)) < 120:
+        return
+    request.session[session_key] = now
+    result = verify_merged_pr_for_issue(issue, user.github_username)
+    if result.verified:
+        record_verified_solved(user, issue, result)
+
 
 def issue_list_view(request):
     query = request.GET.get('q', '').strip()
@@ -37,7 +78,7 @@ def issue_list_view(request):
     solved_ids = set()
     if request.user.is_authenticated:
         saved_ids = set(SavedIssue.objects.filter(user=request.user).values_list('issue_id', flat=True))
-        solved_ids = set(SolvedIssue.objects.filter(user=request.user).exclude(issue__isnull=True).values_list('issue_id', flat=True))
+        solved_ids = _verified_solved_ids(request.user)
 
     context = {
         'page_obj': page_obj,
@@ -65,8 +106,9 @@ def issue_detail_view(request, id):
     is_saved = False
     is_solved = False
     if request.user.is_authenticated:
+        _maybe_auto_verify(request, issue)
         is_saved = SavedIssue.objects.filter(user=request.user, issue=issue).exists()
-        is_solved = SolvedIssue.objects.filter(user=request.user, issue=issue).exists()
+        is_solved = SolvedIssue.objects.filter(user=request.user, issue=issue, is_verified=True).exists()
 
     # Get template files to display
     templates = Template.objects.all()
@@ -95,25 +137,46 @@ def toggle_save_view(request, id):
 
 @require_POST
 def mark_solved_view(request, id):
-    """
-    Mark an open issue as solved by the authenticated user.
-    Security: verifies authentication, open status, duplicate prevention.
-    """
+    """Manual claims are rejected. Solved records come only from GitHub verification."""
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'login_required'}, status=403)
+    return JsonResponse(
+        {'error': 'verification_required', 'message': _VERIFY_MESSAGES['verification_required']},
+        status=403,
+    )
+
+
+@require_POST
+def verify_contribution_view(request, id):
     if not request.user.is_authenticated:
         return JsonResponse({'error': 'login_required'}, status=403)
 
     issue = get_object_or_404(Issue, id=id)
+    result = verify_merged_pr_for_issue(issue, request.user.github_username)
+    if result.verified:
+        obj = record_verified_solved(request.user, issue, result)
+        return JsonResponse({
+            'status': 'solved',
+            'issue_id': issue.id,
+            'pr_url': result.pr_url,
+            'solved_at': obj.solved_at.isoformat() if obj else None,
+        })
+    return JsonResponse(
+        {'error': result.reason, 'message': _VERIFY_MESSAGES.get(result.reason, result.reason)},
+        status=400,
+    )
 
-    # Closed issues cannot be solved — enforce backend even if frontend hides button
-    if issue.status != 'open':
-        return JsonResponse({'error': 'issue_closed', 'message': 'This issue is closed and cannot be marked as solved.'}, status=400)
 
-    # Check duplicate
-    if SolvedIssue.objects.filter(user=request.user, issue=issue).exists():
-        return JsonResponse({'error': 'already_solved', 'message': 'You have already marked this issue as solved.'}, status=400)
-
+@login_required
+def recommended_issues_view(request):
     try:
-        obj = SolvedIssue.objects.create(user=request.user, issue=issue)
-        return JsonResponse({'status': 'solved', 'issue_id': issue.id, 'solved_at': obj.solved_at.isoformat()})
-    except IntegrityError:
-        return JsonResponse({'error': 'already_solved', 'message': 'You have already marked this issue as solved.'}, status=400)
+        recommended_issues = get_recommendations(request.user)
+    except Exception:
+        recommended_issues = []
+    solved_count = SolvedIssue.objects.filter(user=request.user, is_verified=True).exclude(issue__isnull=True).count()
+    return render(request, 'issues/recommended.html', {
+        'recommended_issues': recommended_issues,
+        'solved_ids': _verified_solved_ids(request.user),
+        'has_solved_history': solved_count > 0,
+        'solved_count': solved_count,
+    })

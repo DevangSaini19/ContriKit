@@ -171,7 +171,7 @@ def get_recommendations(user, limit: int = None) -> List[Issue]:
 
     try:
         solved_ids = list(
-            SolvedIssue.objects.filter(user=user)
+            SolvedIssue.objects.filter(user=user, is_verified=True)
             .exclude(issue__isnull=True)
             .values_list("issue_id", flat=True)
         )

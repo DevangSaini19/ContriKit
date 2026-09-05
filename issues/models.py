@@ -99,6 +99,10 @@ class SolvedIssue(models.Model):
         related_name="solved_by",
     )
     solved_at = models.DateTimeField(auto_now_add=True)
+    # Only verified GitHub completions count toward ML history.
+    # Legacy rows created by the old manual "Solved" button stay False.
+    is_verified = models.BooleanField(default=False, db_index=True)
+    github_pr_url = models.URLField(blank=True)
 
     class Meta:
         constraints = [

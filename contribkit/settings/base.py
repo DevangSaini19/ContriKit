@@ -115,6 +115,10 @@ CLOSED_ISSUE_RETENTION_DAYS = config('CLOSED_ISSUE_RETENTION_DAYS', default=30, 
 # How many personalized recommendations to show on the contributor dashboard.
 RECOMMENDED_ISSUES_LIMIT = config('RECOMMENDED_ISSUES_LIMIT', default=6, cast=int)
 
+# Optional GitHub PAT — same env var already documented in .env.example.
+# Used for merged-PR verification (and higher API rate limits).
+GITHUB_PAT = config('GITHUB_PAT', default='')
+
 LOGIN_REDIRECT_URL = '/dashboard/'
 LOGOUT_REDIRECT_URL = '/'
 LOGIN_URL = '/accounts/login/'

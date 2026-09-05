@@ -19,7 +19,7 @@ class SavedIssueAdmin(admin.ModelAdmin):
 
 @admin.register(SolvedIssue)
 class SolvedIssueAdmin(admin.ModelAdmin):
-    list_display = ('user', 'issue', 'solved_at')
-    list_filter = ('solved_at',)
+    list_display = ('user', 'issue', 'is_verified', 'solved_at', 'github_pr_url')
+    list_filter = ('is_verified', 'solved_at')
     search_fields = ('user__username', 'issue__title')
     readonly_fields = ('solved_at',)

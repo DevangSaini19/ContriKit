@@ -79,10 +79,17 @@
         {% endif %}
 
         <div class="detail-cta">
-          <div>
-            <h3 class="text-card-title" style="font-size:1rem;margin-bottom:4px;">Ready to tackle this issue?</h3>
-            <p class="text-meta mb-0">Claim it on GitHub by commenting that you're working on it via ContribKit!</p>
-          </div>
+          {% if issue.status == 'open' %}
+            <div>
+              <h3 class="text-card-title" style="font-size:1rem;margin-bottom:4px;">Ready to tackle this issue?</h3>
+              <p class="text-meta mb-0">Claim it on GitHub by commenting that you're working on it via ContribKit!</p>
+            </div>
+          {% else %}
+            <div>
+              <h3 class="text-card-title" style="font-size:1rem;margin-bottom:4px;"><i class="bi bi-lock-fill"></i> This issue is closed</h3>
+              <p class="text-meta mb-0">It is no longer listed as an open opportunity.</p>
+            </div>
+          {% endif %}
           <div class="detail-cta__actions">
             {% if user.is_authenticated %}
               <button type="button" class="btn {% if is_saved %}btn-primary{% else %}btn-secondary{% endif %} btn-toggle-save" data-issue-id="{{ issue.id }}">

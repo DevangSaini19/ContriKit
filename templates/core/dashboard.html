@@ -123,6 +123,56 @@
       </a>
     </div>
 
+    <!-- Your Solved Issues — verified GitHub contributions by this user -->
+    <div class="dashboard-panel mb-4">
+      <div class="dashboard-panel__header">
+        <h2 class="dashboard-panel__title">
+          <i class="bi bi-check2-square text-success me-2"></i>Your Solved Issues
+        </h2>
+        {% if solved_count %}
+          <span class="small text-muted fw-semibold">{{ solved_count }} verified</span>
+        {% endif %}
+      </div>
+      {% if solved_issues %}
+        <div class="d-flex flex-column gap-3">
+          {% for item in solved_issues %}
+            <div class="p-3 border rounded card-hover bg-light d-flex justify-content-between align-items-center">
+              <div>
+                <div class="d-flex flex-wrap align-items-center gap-1 mb-1">
+                  <span class="badge bg-secondary small">{{ item.issue.repo.name }}</span>
+                  {% if item.issue.difficulty == 'beginner' %}
+                    <span class="badge badge-beginner">Beginner</span>
+                  {% else %}
+                    <span class="badge badge-intermediate">Intermediate</span>
+                  {% endif %}
+                  {% if item.issue.status == 'closed' %}
+                    <span class="badge bg-secondary"><i class="bi bi-lock-fill"></i> Closed</span>
+                  {% endif %}
+                </div>
+                <h6 class="fw-bold mb-1"><a href="/issues/{{ item.issue.id }}/" class="text-dark text-decoration-none">{{ item.issue.title }}</a></h6>
+                <small class="text-muted">
+                  <i class="bi bi-check2-square text-success me-1"></i>Solved {{ item.solved_at|date:"M d, Y" }}
+                  <span class="mx-1">·</span>
+                  <i class="bi bi-clock me-1"></i>~{{ item.issue.estimated_hours }}h
+                </small>
+              </div>
+              <a href="{{ item.issue.github_issue_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-dark" data-bs-toggle="tooltip" title="Open on GitHub">
+                <i class="bi bi-github"></i>
+              </a>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="dashboard-empty">
+          <div class="dashboard-empty__icon"><i class="bi bi-check2-square"></i></div>
+          <h4 class="text-card-title mb-2">No solved issues yet</h4>
+          <p class="text-meta text-muted mb-0" style="max-width:360px;">
+            When a merged pull request from your GitHub account is verified against an issue, it will be recorded here.
+          </p>
+        </div>
+      {% endif %}
+    </div>
+
     <div class="row g-4">
       <div class="col-lg-7">
         <div class="dashboard-panel">

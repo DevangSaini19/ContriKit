@@ -49,6 +49,16 @@ def dashboard_view(request):
     solved_ids = set(
         SolvedIssue.objects.filter(user=user, is_verified=True).exclude(issue__isnull=True).values_list('issue_id', flat=True)
     )
+    # This user's verified solved history for the dashboard section.
+    # Closed issues stay listed here (their solved record is preserved);
+    # rows whose issue was removed by retention cleanup (issue=NULL) are excluded.
+    solved_issues = (
+        SolvedIssue.objects.filter(user=user, is_verified=True)
+        .exclude(issue__isnull=True)
+        .select_related('issue', 'issue__repo')
+        .prefetch_related('issue__tags')
+        .order_by('-solved_at')[:4]
+    )
 
     context = {
         'saved_issues': saved_issues,
@@ -58,6 +68,7 @@ def dashboard_view(request):
         'solved_count': solved_count,
         'solved_ids': solved_ids,
         'has_solved_history': solved_count > 0,
+        'solved_issues': solved_issues,
     }
 
     if user.is_editor:

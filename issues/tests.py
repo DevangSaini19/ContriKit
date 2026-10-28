@@ -534,6 +534,110 @@ class DashboardRecommendationTests(SolvedMLFixturesMixin, TestCase):
         self.assertIn('/accounts/login/', response['Location'])
 
 
+class DashboardSolvedHistoryTests(SolvedMLFixturesMixin, TestCase):
+    """The dashboard "Your Solved Issues" section: current user's verified records only."""
+
+    def setUp(self):
+        self.editor = self.make_user('ed4', role='editor')
+        self.user_a = self.make_user('solvera', github_username='alice')
+        self.user_b = self.make_user('solverb', github_username='bob')
+        self.repo = self.make_repo(self.editor, 'solved-repo', language='Python')
+        self.issue_x = self.make_issue(self.repo, self.editor, 'Issue X bug', description='Python bug X')
+        self.issue_y = self.make_issue(self.repo, self.editor, 'Issue Y bug', description='Python bug Y')
+
+    def _dashboard(self, user):
+        self.client.force_login(user)
+        return self.client.get('/dashboard/')
+
+    def test_dashboard_shows_own_verified_solved_issue(self):
+        self.verified_solve(self.user_a, self.issue_x)
+        response = self._dashboard(self.user_a)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Your Solved Issues')
+        self.assertContains(response, self.issue_x.title)
+
+    def test_other_users_solved_issue_not_shown(self):
+        self.verified_solve(self.user_a, self.issue_x)
+        response = self._dashboard(self.user_b)
+        self.assertNotContains(response, self.issue_x.title)
+
+    def test_unverified_records_not_shown(self):
+        SolvedIssue.objects.create(user=self.user_a, issue=self.issue_x, is_verified=False)
+        response = self._dashboard(self.user_a)
+        self.assertNotContains(response, self.issue_x.title)
+
+    def test_empty_state_when_no_solved_issues(self):
+        response = self._dashboard(self.user_a)
+        self.assertContains(response, 'No solved issues yet')
+        self.assertNotContains(response, self.issue_x.title)
+
+    def test_multiple_solved_issues_displayed(self):
+        self.verified_solve(self.user_a, self.issue_x)
+        self.verified_solve(self.user_a, self.issue_y)
+        response = self._dashboard(self.user_a)
+        self.assertContains(response, self.issue_x.title)
+        self.assertContains(response, self.issue_y.title)
+        self.assertEqual(response.context['solved_count'], 2)
+
+    def test_solved_history_survives_issue_closed_and_shows_closed_badge(self):
+        self.verified_solve(self.user_a, self.issue_x)
+        self.issue_x.status = 'closed'
+        self.issue_x.save()
+        response = self._dashboard(self.user_a)
+        self.assertContains(response, self.issue_x.title)
+        self.assertContains(response, 'Closed')
+        # open listings must not show it anymore
+        self.client.force_login(self.user_a)
+        listing = self.client.get('/issues/')
+        self.assertNotContains(listing, self.issue_x.title)
+
+    def test_retention_nulled_issue_does_not_break_dashboard(self):
+        self.verified_solve(self.user_a, self.issue_x)
+        SolvedIssue.objects.filter(user=self.user_a, issue=self.issue_x).update(issue=None)
+        response = self._dashboard(self.user_a)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'No solved issues yet')
+
+    def test_dashboard_requires_login(self):
+        response = self.client.get('/dashboard/')
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/accounts/login/', response['Location'])
+
+
+class ClosedIssueStatusTests(SolvedMLFixturesMixin, TestCase):
+    """Closed issues: detail page reflects CLOSED state and cannot be treated as open."""
+
+    def setUp(self):
+        self.editor = self.make_user('ed5', role='editor')
+        self.user = self.make_user('closer', github_username='carol')
+        self.repo = self.make_repo(self.editor, 'closed-repo', language='Python')
+        self.issue = self.make_issue(self.repo, self.editor, 'Soon closed issue', description='Python close me')
+
+    def test_open_issue_detail_offers_tackle_cta(self):
+        self.client.force_login(self.user)
+        response = self.client.get(reverse('issue_detail', args=[self.issue.id]))
+        self.assertContains(response, 'Ready to tackle this issue?')
+
+    def test_closed_issue_detail_drops_open_cta_and_shows_closed(self):
+        self.issue.status = 'closed'
+        self.issue.save()
+        self.client.force_login(self.user)
+        response = self.client.get(reverse('issue_detail', args=[self.issue.id]))
+        self.assertContains(response, 'This issue is closed')
+        self.assertNotContains(response, 'Ready to tackle this issue?')
+
+    def test_closing_reflects_on_next_listing_request(self):
+        self.client.force_login(self.user)
+        self.assertContains(self.client.get('/issues/'), self.issue.title)
+        self.issue.status = 'closed'
+        self.issue.save()
+        self.assertNotContains(self.client.get('/issues/'), self.issue.title)
+        # reopening restores it per existing implementation
+        self.issue.status = 'open'
+        self.issue.save()
+        self.assertContains(self.client.get('/issues/'), self.issue.title)
+
+
 class CoreRegressionTests(TestCase):
     def test_landing_page_ok(self):
         self.assertEqual(self.client.get('/').status_code, 200)

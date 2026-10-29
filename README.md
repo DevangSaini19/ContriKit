@@ -70,6 +70,31 @@
 
    Added Deploy Link:- https://shouryano01.pythonanywhere.com/ 
 
+### Checking the solved-history features on a live deployment
+
+`issues/test_production_features.py` covers the verified solved-history
+features (dashboard panel, closed-issue detail, duplicate prevention, per-user
+isolation, template markers). It runs as part of the normal suite:
+
+```bash
+python manage.py test issues.test_production_features
+```
+
+On a deployed instance you can also run the read-only self-check. It writes
+nothing and inspects the real database, templates and migrations:
+
+```bash
+python manage.py check_features
+python manage.py check_features --json    # machine-readable, for cron logs
+```
+
+It exits non-zero when a hard check fails (missing migrations, a missing
+unique `(user, issue)` constraint, duplicate rows, a dashboard query that
+leaks another user's history, or missing template sections), so it is safe to
+run from a PythonAnywhere scheduled task as a health monitor. Informational
+findings (legacy unverified rows, retention-nulled history, closed issues
+without `closed_at`) are printed but never fail the command.
+
 ---
 
 ## Sign in with Google (OAuth 2.0)

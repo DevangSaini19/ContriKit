@@ -95,6 +95,47 @@ run from a PythonAnywhere scheduled task as a health monitor. Informational
 findings (legacy unverified rows, retention-nulled history, closed issues
 without `closed_at`) are printed but never fail the command.
 
+### Keeping issue status in sync with GitHub
+
+ContriKit stores its own copy of each issue's `open`/`closed` state. A closed
+GitHub issue therefore keeps showing "Ready to tackle this issue?" until that
+copy is refreshed. `sync_issue_status` refreshes it from the GitHub REST API:
+
+```bash
+python manage.py sync_issue_status --dry-run   # preview, writes nothing
+python manage.py sync_issue_status             # sync open issues
+python manage.py sync_issue_status --verbose    # one line per issue
+```
+
+Options:
+
+- `--dry-run` reports what would change without touching the database.
+- `--issue-id N` syncs a single local issue.
+- `--repo OWNER/REPO` limits the run to one GitHub repository.
+- `--include-all` also syncs locally closed issues, so a GitHub reopen is
+  detected (by default only open rows are checked).
+
+Behavior and guarantees:
+
+- GitHub's own `closed_at` is stored, not the time of the sync.
+- Any API problem (401, 403, 404, rate limit, 5xx, timeout, malformed
+  response) leaves the local row completely untouched and makes the command
+  exit non-zero. A failed request is never treated as "open".
+- Rows created by `seed_data` are flagged `is_demo` and never sent to GitHub;
+  their URLs are synthetic placeholders.
+- Writes are idempotent: a row that is already correct is not updated again.
+- Setting `GITHUB_PAT` raises the rate limit from 60 to 5000 requests/hour
+  and enables access to private repositories.
+
+To run it automatically on PythonAnywhere, add a daily Scheduled Task:
+
+```
+/home/<user>/.virtualenvs/venv/bin/python /home/<user>/contrikit/manage.py sync_issue_status
+```
+
+The tests mock the GitHub API, so `python manage.py test issues.test_github_sync`
+needs no network or credentials.
+
 ---
 
 ## Sign in with Google (OAuth 2.0)

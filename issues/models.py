@@ -29,7 +29,16 @@ class Issue(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     # When the issue was closed — used for retention-based cleanup.
     # Null means currently open or legacy closed row without timestamp.
+    # For synced issues this stores GitHub's own closed_at timestamp, not the
+    # moment we noticed the closure.
     closed_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    # Demo rows (seed data) have no verified real GitHub issue behind them.
+    # They are excluded from GitHub status synchronization so a fabricated URL
+    # can never flip their status or corrupt real data.
+    is_demo = models.BooleanField(default=False, db_index=True)
+    # When GitHub status was last successfully fetched for this row.
+    # Null means never synced; used to bound and observe synchronization.
+    github_synced_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return self.title

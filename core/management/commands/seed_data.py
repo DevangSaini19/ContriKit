@@ -119,10 +119,18 @@ class Command(BaseCommand):
              "When running `flask run` and port 5000 is occupied, socket.error raises a cryptic traceback. Catch `OSError` and output a clean message: 'Port 5000 is occupied. Use --port to choose another.'")
         ]
 
-        for title, repo_name, diff, hrs, feat, views, tag_slugs, desc in issues_data:
+        for index, (title, repo_name, diff, hrs, feat, views, tag_slugs, desc) in enumerate(issues_data, start=1):
             r = repo_objs.get(repo_name)
             if r:
-                url = f"https://github.com/{r.name}/issues/{abs(hash(title)) % 9000 + 100}"
+                # Demo rows use stable, obviously synthetic issue numbers and are
+                # flagged is_demo so `sync_issue_status` never queries GitHub for
+                # them. Never derive these from hash(): it is salted per process,
+                # which made every re-seed point at a different (possibly real)
+                # issue.
+                url = f"https://github.com/{r.name}/issues/{1000 + index}"
+                # `status` is intentionally absent from defaults: re-seeding an
+                # existing row must not silently reopen an issue that was
+                # (correctly) closed by a real sync.
                 iss, _ = Issue.objects.update_or_create(title=title, defaults={
                     "repo": r,
                     "posted_by": editor_user,
@@ -130,8 +138,8 @@ class Command(BaseCommand):
                     "github_issue_url": url,
                     "difficulty": diff,
                     "estimated_hours": hrs,
-                    "status": "open",
                     "is_featured": feat,
+                    "is_demo": True,
                     "view_count": views
                 })
                 for ts in tag_slugs:
